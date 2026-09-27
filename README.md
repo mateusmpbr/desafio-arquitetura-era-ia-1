@@ -288,23 +288,26 @@ As chaves de demonstração são criadas automaticamente na subida ([gateway/key
 
 ```
 REQ='{"model": "ticket-classification", "messages": [{"role": "user", "content": "TASK: classify\nMeu pedido não chegou"}]}'
-curl -s -X POST localhost:8090/admin/reset
+curl -s -X POST localhost:8090/admin/reset > /dev/null
 # (só se o roteiro já rodou antes: zera o gasto da chave de orçamento)
 curl -s localhost:4000/key/update -H "Authorization: Bearer sk-gateway-master-0001" \
   -H "Content-Type: application/json" -d '{"key": "sk-governance-budget-0001", "spend": 0}' > /dev/null
 
 # 1) Orçamento: a 1ª passa e gasta ~US$ 0,00014 (acima do orçamento); a 2ª é recusada
-for i in 1 2; do curl -s -w "  -> HTTP %{http_code}\n" localhost:4000/v1/chat/completions \
+for i in 1 2; do curl -s -w "\n  -> HTTP %{http_code}\n" localhost:4000/v1/chat/completions \
   -H "Authorization: Bearer sk-governance-budget-0001" -H "Content-Type: application/json" -d "$REQ" | cut -c1-160; done
-# ... -> HTTP 200
-# {"error":{"message":"Budget has been exceeded! Key=governance-budget-demo ...","type":"budget_exceeded",...}} -> HTTP 429
+# {"id":"chatcmpl-...","model":"ticket-classification",...
+#   -> HTTP 200
+# {"error":{"message":"Budget has been exceeded! Key=governance-budget-demo (sk-...0001) Current cost: 0.00014..., Max budget: 0.0001","type":"budget_exceeded",...
+#   -> HTTP 429
 
 # 2) Limite de requisições: 2 por minuto; a 3ª é recusada
-for i in 1 2 3; do curl -s -w "  -> HTTP %{http_code}\n" localhost:4000/v1/chat/completions \
+for i in 1 2 3; do curl -s -w "\n  -> HTTP %{http_code}\n" localhost:4000/v1/chat/completions \
   -H "Authorization: Bearer sk-governance-rpm-0001" -H "Content-Type: application/json" -d "$REQ" | cut -c1-160; done
-# ... -> HTTP 200
-# ... -> HTTP 200
-# {"error":{"message":"Rate limit exceeded for api_key: ... Limit type: requests. Current limit: 2, ..."}} -> HTTP 429
+#   -> HTTP 200
+#   -> HTTP 200
+# {"error":{"message":"Rate limit exceeded for api_key: ... Limit type: requests. Current limit: 2, ...
+#   -> HTTP 429
 
 # 3) As recusadas não chegaram ao provider: 5 requisições, 3 chamadas
 curl -s "localhost:8090/admin/calls?last=50" | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'chamadas')"
