@@ -1,0 +1,7 @@
+[
+  {
+    "key_alias": "helpdesk-app",
+    "key_env": "GATEWAY_APP_KEY",
+    "models": ["ticket-classification", "reply-suggestion", "topics-report", "order-extraction"]
+  }
+]
