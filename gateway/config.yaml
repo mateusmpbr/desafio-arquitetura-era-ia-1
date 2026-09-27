@@ -1,27 +1,86 @@
-# AI Gateway (LiteLLM Proxy). A aplicação só conhece os nomes lógicos (model_name);
-# os modelos físicos e as chaves dos providers ficam aqui.
+# AI Gateway (LiteLLM Proxy). A aplicação só conhece os nomes lógicos (model_name)
+# dos grupos primários; os modelos físicos, as chaves dos providers, os preços e a
+# resiliência ficam aqui. Ver docs/adr/ e a seção "Troca de modelo" do README.
+
+# Destinos físicos. Preços do README do provider-fake, em US$ por token: sem eles o
+# LiteLLM calcula custo zero e nenhum orçamento estoura.
+x-openai-large: &openai-large
+  model: openai/gpt-fake-large
+  api_base: http://provider-fake:8090/openai/v1
+  api_key: os.environ/FAKE_OPENAI_KEY
+  input_cost_per_token: 0.0000025
+  output_cost_per_token: 0.00001
+x-openai-mini: &openai-mini
+  model: openai/gpt-fake-mini
+  api_base: http://provider-fake:8090/openai/v1
+  api_key: os.environ/FAKE_OPENAI_KEY
+  input_cost_per_token: 0.00000015
+  output_cost_per_token: 0.0000006
+x-anthropic-large: &anthropic-large
+  model: anthropic/claude-fake-large
+  api_base: http://provider-fake:8090/anthropic
+  api_key: os.environ/FAKE_ANTHROPIC_KEY
+  input_cost_per_token: 0.000003
+  output_cost_per_token: 0.000015
+x-anthropic-mini: &anthropic-mini
+  model: anthropic/claude-fake-mini
+  api_base: http://provider-fake:8090/anthropic
+  api_key: os.environ/FAKE_ANTHROPIC_KEY
+  input_cost_per_token: 0.0000008
+  output_cost_per_token: 0.000004
 
 model_list:
+  # F1: classificação
   - model_name: ticket-classification
-    litellm_params:
-      model: openai/gpt-fake-large
-      api_base: http://provider-fake:8090/openai/v1
-      api_key: os.environ/FAKE_OPENAI_KEY
+    litellm_params: {<<: *openai-large, timeout: 4}
+  - model_name: ticket-classification-alt
+    litellm_params: {<<: *anthropic-large, timeout: 4}
+  - model_name: ticket-classification-weak
+    litellm_params: {<<: *openai-mini, timeout: 4}
+
+  # F2: sugestão de resposta
   - model_name: reply-suggestion
-    litellm_params:
-      model: anthropic/claude-fake-large
-      api_base: http://provider-fake:8090/anthropic
-      api_key: os.environ/FAKE_ANTHROPIC_KEY
+    litellm_params: {<<: *anthropic-large, timeout: 25, stream_timeout: 3}
+  - model_name: reply-suggestion-alt
+    litellm_params: {<<: *openai-large, timeout: 25, stream_timeout: 3}
+  - model_name: reply-suggestion-weak
+    litellm_params: {<<: *anthropic-mini, timeout: 10, stream_timeout: 3}
+
+  # F3: relatório de temas
   - model_name: topics-report
-    litellm_params:
-      model: anthropic/claude-fake-large
-      api_base: http://provider-fake:8090/anthropic
-      api_key: os.environ/FAKE_ANTHROPIC_KEY
+    litellm_params: {<<: *anthropic-large, timeout: 18}
+  - model_name: topics-report-alt
+    litellm_params: {<<: *openai-large, timeout: 18}
+  - model_name: topics-report-weak
+    litellm_params: {<<: *anthropic-mini, timeout: 8}
+
+  # F4: extração de dados do pedido (sem destino fraco: ver ADR de fallback)
   - model_name: order-extraction
-    litellm_params:
-      model: openai/gpt-fake-large
-      api_base: http://provider-fake:8090/openai/v1
-      api_key: os.environ/FAKE_OPENAI_KEY
+    litellm_params: {<<: *openai-large, timeout: 4}
+  - model_name: order-extraction-alt
+    litellm_params: {<<: *anthropic-large, timeout: 4}
+
+router_settings:
+  # Fallback técnico (outro provider, modelo equivalente) e, onde o produto aceita,
+  # fallback com modelo fraco. Tentados nesta ordem depois de esgotar os retries.
+  fallbacks:
+    - ticket-classification: [ticket-classification-alt, ticket-classification-weak]
+    - reply-suggestion: [reply-suggestion-alt, reply-suggestion-weak]
+    - topics-report: [topics-report-alt, topics-report-weak]
+    - order-extraction: [order-extraction-alt]
+  # Retry só para falha transitória; timeout vai direto para o fallback.
+  retry_policy:
+    InternalServerErrorRetries: 1
+    RateLimitErrorRetries: 1
+    TimeoutErrorRetries: 0
+    BadRequestErrorRetries: 0
+    AuthenticationErrorRetries: 0
+    ContentPolicyViolationErrorRetries: 0
+  # Sem cooldown: toda requisição tenta o primário, o que torna o /admin/calls previsível.
+  disable_cooldowns: true
+
+litellm_settings:
+  drop_params: true
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
