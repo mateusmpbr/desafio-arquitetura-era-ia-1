@@ -3,7 +3,7 @@
     "key_alias": "helpdesk-app",
     "key_env": "GATEWAY_APP_KEY",
     "models": ["ticket-classification", "reply-suggestion", "topics-report", "order-extraction"],
-    "max_budget": 50,
+    "max_budget": 100,
     "budget_duration": "30d",
     "rpm_limit": 600
   },
