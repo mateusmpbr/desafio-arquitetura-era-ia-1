@@ -1,0 +1,27 @@
+{
+  "TK-00002": {
+    "ticket_id": "TK-00002",
+    "category": "product_defect",
+    "priority": "medium"
+  },
+  "TK-00009": {
+    "ticket_id": "TK-00009",
+    "category": "delivery",
+    "priority": "high"
+  },
+  "TK-00012": {
+    "ticket_id": "TK-00012",
+    "category": "other",
+    "priority": "low"
+  },
+  "TK-00015": {
+    "ticket_id": "TK-00015",
+    "category": "exchange_return",
+    "priority": "medium"
+  },
+  "TK-00023": {
+    "ticket_id": "TK-00023",
+    "category": "payment",
+    "priority": "high"
+  }
+}
