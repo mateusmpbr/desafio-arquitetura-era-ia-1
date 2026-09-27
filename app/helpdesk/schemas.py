@@ -1,4 +1,5 @@
 from datetime import date
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -12,11 +13,6 @@ class Classification(BaseModel):
     ticket_id: str
     category: str
     priority: str
-
-
-class ReplySuggestion(BaseModel):
-    ticket_id: str
-    suggestion: str
 
 
 class OrderData(BaseModel):
@@ -41,3 +37,18 @@ class TopicsReport(BaseModel):
     end: date
     total_tickets: int
     topics: list[Topic]
+
+
+class JobState(str, Enum):
+    pending = "pending"
+    running = "running"
+    failed = "failed"
+    done = "done"
+
+
+class ReportJob(BaseModel):
+    id: str
+    state: JobState = JobState.pending
+    progress: str | None = None
+    reason: str | None = None
+    result: TopicsReport | None = None

@@ -42,3 +42,35 @@ def client():
     # que um 504 da borda apareça como falha de asserção, não como erro do cliente.
     with httpx.Client(base_url=HELPDESK_URL, timeout=60) as http:
         yield http
+
+
+# ---------- contratos novos da main (streaming e assíncrono) ----------
+
+def read_sse(response: httpx.Response) -> list[tuple[str, dict]]:
+    """Lê um stream SSE inteiro como [(evento, dados)]; evento padrão é 'message'."""
+    events, event = [], "message"
+    for line in response.iter_lines():
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:"):
+            events.append((event, json.loads(line.split(":", 1)[1])))
+            event = "message"
+    return events
+
+
+def run_report(client: httpx.Client, period: dict, timeout_s: float = 120) -> httpx.Response:
+    """Pede o relatório, acompanha a URL de status até o 303 e devolve a resposta do resultado."""
+    import time
+
+    accepted = client.post("/reports/topics", json=period)
+    assert accepted.status_code == 202, accepted.text
+    status_url = accepted.headers["location"]
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        status = client.get(status_url, follow_redirects=False)
+        if status.status_code == 303:
+            return client.get(status.headers["location"])
+        assert status.status_code == 200, status.text
+        assert status.json()["state"] in ("pending", "running"), status.json()
+        time.sleep(1)
+    raise AssertionError(f"relatório não terminou em {timeout_s} s")

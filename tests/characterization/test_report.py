@@ -1,11 +1,12 @@
 from .cases import EMPTY_PERIOD, REPORT_PERIOD
-from .conftest import load_golden
+from .conftest import load_golden, run_report
 
 ROUTE = "/reports/topics"
 
 
 def test_topics_report_across_batches(client):
-    response = client.post(ROUTE, json=REPORT_PERIOD)
+    # main: Asynchronous Request-Reply; o relatório final é o mesmo da v1.
+    response = run_report(client, REPORT_PERIOD)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
@@ -17,7 +18,7 @@ def test_topics_report_across_batches(client):
 
 
 def test_period_without_tickets(client):
-    response = client.post(ROUTE, json=EMPTY_PERIOD)
+    response = run_report(client, EMPTY_PERIOD)
 
     assert response.status_code == 200
     assert response.json() == load_golden("report_empty")
